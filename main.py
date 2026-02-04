@@ -95,7 +95,7 @@ async def process_menu(callback_query: types.CallbackQuery, state: FSMContext):
     # Информация о боте
     elif callback_query.data == "info":
         await callback_query.message.answer(
-            "ℹ️ Версия бота: 1.1",
+            "ℹ️ Версия бота: 1.1/n разработчик:@E23gfgd",
             reply_markup=back_menu()
         )
 
@@ -110,7 +110,7 @@ async def process_menu(callback_query: types.CallbackQuery, state: FSMContext):
         user_id_to_approve = int(parts[2])
         await bot.send_message(
             user_id_to_approve,
-            "✅ Ваш вывод подтвержден, пишите мне за выводом @E23gfgd",
+            "✅ Ваш вывод подтвержден, пишите мне за выводом @rcpusher",
             reply_markup=back_menu()
         )
         await callback_query.message.edit_text(
@@ -173,3 +173,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
