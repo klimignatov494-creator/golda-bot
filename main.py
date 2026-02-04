@@ -13,7 +13,7 @@ storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
 # --- База данных ---
-users = {}  # user_id: {"balance":10000, "pending_msg_id": None}
+users = {}  # user_id: {"balance":10000, "pending_msg_id": None, "withdraw_in_process": False, "pending_amount": 0}
 
 # --- FSM ---
 class WithdrawStates(StatesGroup):
@@ -52,7 +52,12 @@ def clicker_buttons() -> InlineKeyboardMarkup:
 async def cmd_start(message: types.Message):
     user_id = message.from_user.id
     if user_id not in users:
-        users[user_id] = {"balance": 10000, "pending_msg_id": None}
+        users[user_id] = {
+            "balance": 10000,
+            "pending_msg_id": None,
+            "withdraw_in_process": False,
+            "pending_amount": 0
+        }
     await message.answer("Добро пожаловать! Выберите действие:", reply_markup=main_menu())
 
 # --- Обработка кнопок ---
@@ -61,7 +66,12 @@ async def process_menu(callback_query: types.CallbackQuery, state: FSMContext):
     user_id = callback_query.from_user.id
 
     if user_id not in users:
-        users[user_id] = {"balance": 10000, "pending_msg_id": None}
+        users[user_id] = {
+            "balance": 10000,
+            "pending_msg_id": None,
+            "withdraw_in_process": False,
+            "pending_amount": 0
+        }
 
     # Профиль
     if callback_query.data == "profile":
@@ -140,25 +150,41 @@ async def process_menu(callback_query: types.CallbackQuery, state: FSMContext):
         else:
             mod_nick = "@rcpusher"
 
+        # Берём сумму с комиссией
+        total_amount = users[user_id_to_notify].get("pending_amount", 0)
+
         # Сообщение пользователю
         await bot.send_message(
             user_id_to_notify,
-            f"✅ Ваш вывод подтвержден, пишите мне за выводом {mod_nick}",
+            f"✅ Ваш вывод {total_amount} голды подтвержден, пишите мне за выводом {mod_nick}",
             reply_markup=back_menu()
         )
 
-        # Обновляем текст сообщения в админ-группе полностью
-        # Берём первую строку с пользователем и суммой
-        original_text = callback_query.message.text.split("\n")[0]
-        new_text = f"{original_text}\n✅ Вывод назначен модератором: {mod_nick} сумма вывода {total_amount} голды"
+        # Обновляем текст сообщения в админ-группе
+        original_text = callback_query.message.text.split("\n")[0]  # первая строка
+        new_text = f"{original_text}\n✅ Вывод {total_amount} голды назначен модератором: {mod_nick}"
         await callback_query.message.edit_text(new_text)
+
+        # Сбрасываем флаг и очищаем сумму
+        users[user_id_to_notify]["withdraw_in_process"] = False
+        users[user_id_to_notify]["pending_amount"] = 0
 
 # --- Ввод суммы для вывода ---
 @dp.message(WithdrawStates.waiting_for_amount)
 async def withdraw_amount(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
     if user_id not in users:
-        users[user_id] = {"balance": 10000, "pending_msg_id": None}
+        users[user_id] = {
+            "balance": 10000,
+            "pending_msg_id": None,
+            "withdraw_in_process": False,
+            "pending_amount": 0
+        }
+
+    # Проверка, есть ли уже активная заявка
+    if users[user_id]["withdraw_in_process"]:
+        await message.answer("❌ У вас уже есть заявка на вывод, дождитесь её обработки.")
+        return
 
     try:
         amount = int(message.text)
@@ -173,9 +199,11 @@ async def withdraw_amount(message: types.Message, state: FSMContext):
             await message.answer("❌ У вас недостаточно голды для вывода. Введите корректную сумму:")
             return
 
-        # Списываем баланс только после проверки
+        # Списываем баланс
         users[user_id]["balance"] -= amount
         total_amount = int(amount * 1.2)  # +20%
+        users[user_id]["pending_amount"] = total_amount
+        users[user_id]["withdraw_in_process"] = True
 
         # Отправляем в админ-группу с кнопкой первого шага
         approve_button = InlineKeyboardMarkup(
