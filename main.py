@@ -150,7 +150,7 @@ async def process_menu(callback_query: types.CallbackQuery, state: FSMContext):
         # Обновляем текст сообщения в админ-группе полностью
         # Берём первую строку с пользователем и суммой
         original_text = callback_query.message.text.split("\n")[0]
-        new_text = f"{original_text}\n✅ Вывод назначен модератором: {mod_nick}"
+        new_text = f"{original_text}\n✅ Вывод назначен модератором: {mod_nick} сумма вывода {total_amount} голды"
         await callback_query.message.edit_text(new_text)
 
 # --- Ввод суммы для вывода ---
@@ -209,3 +209,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
