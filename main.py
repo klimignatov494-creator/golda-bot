@@ -95,7 +95,7 @@ async def process_menu(callback_query: types.CallbackQuery, state: FSMContext):
     # Информация о боте
     elif callback_query.data == "info":
         await callback_query.message.answer(
-            "ℹ️ Версия бота: 1.1/n разработчик:@E23gfgd",
+            "ℹ️ Версия бота: 1.1\nразработчик: @E23gfgd",
             reply_markup=back_menu()
         )
 
@@ -104,18 +104,54 @@ async def process_menu(callback_query: types.CallbackQuery, state: FSMContext):
         await callback_query.message.answer("Введите сумму для вывода (мин. 5000):")
         await state.set_state(WithdrawStates.waiting_for_amount)
 
-    # Принятие вывода админом
+    # Первый шаг подтверждения вывода (админ нажимает "Принять вывод")
     elif callback_query.data.startswith("approve_withdraw_"):
         parts = callback_query.data.split("_")
         user_id_to_approve = int(parts[2])
-        await bot.send_message(
-            user_id_to_approve,
-            "✅ Ваш вывод подтвержден, пишите мне за выводом @rcpusher",
-            reply_markup=back_menu()
+
+        # Кнопки выбора модератора
+        choose_mod_buttons = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="Монти",
+                        callback_data=f"mod_withdraw_1_{user_id_to_approve}"
+                    ),
+                    InlineKeyboardButton(
+                        text="Азер",
+                        callback_data=f"mod_withdraw_2_{user_id_to_approve}"
+                    )
+                ]
+            ]
         )
         await callback_query.message.edit_text(
-            callback_query.message.text + "\n✅ Вывод принят"
+            "Выберите, кто будет выдавать вывод:",
+            reply_markup=choose_mod_buttons
         )
+
+    # Второй шаг: выбор модератора
+    elif callback_query.data.startswith("mod_withdraw_"):
+        parts = callback_query.data.split("_")
+        mod_choice = parts[2]  # '1' или '2'
+        user_id_to_notify = int(parts[3])
+
+        if mod_choice == "1":
+            mod_nick = "@E23gfgd"
+        else:
+            mod_nick = "@rcpusher"
+
+        # Сообщение пользователю
+        await bot.send_message(
+            user_id_to_notify,
+            f"✅ Ваш вывод подтвержден, пишите мне за выводом {mod_nick}",
+            reply_markup=back_menu()
+        )
+
+        # Обновляем текст сообщения в админ-группе полностью
+        # Берём первую строку с пользователем и суммой
+        original_text = callback_query.message.text.split("\n")[0]
+        new_text = f"{original_text}\n✅ Вывод назначен модератором: {mod_nick}"
+        await callback_query.message.edit_text(new_text)
 
 # --- Ввод суммы для вывода ---
 @dp.message(WithdrawStates.waiting_for_amount)
@@ -141,7 +177,7 @@ async def withdraw_amount(message: types.Message, state: FSMContext):
         users[user_id]["balance"] -= amount
         total_amount = int(amount * 1.2)  # +20%
 
-        # Отправляем в админ-группу
+        # Отправляем в админ-группу с кнопкой первого шага
         approve_button = InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton(
@@ -173,4 +209,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
